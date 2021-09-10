@@ -2,6 +2,9 @@ package com.github.cheewail.vertx.petstore.verticle;
 
 import com.github.cheewail.vertx.petstore.service.api.PetService;
 import com.github.cheewail.vertx.petstore.service.api.model.Pet;
+import io.vertx.config.ConfigRetriever;
+import io.vertx.config.ConfigRetrieverOptions;
+import io.vertx.config.ConfigStoreOptions;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -32,40 +35,45 @@ public class HttpServerVerticle extends AbstractVerticle {
 
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
-        super.start();
         logger.info("HttpServerVerticle starting...");
+        super.start();
 
         petService = PetService.createProxy(vertx, "pet.service");
 
-        createApiTempFile("petstore.yaml")
-                .onSuccess(file -> {
-                    RouterBuilder.create(vertx, file)
-                            .onSuccess(routerBuilder -> {
-                                routerBuilder.operation("createPets").handler(this::createPets);
-                                routerBuilder.operation("listPets").handler(this::listPets);
-                                routerBuilder.operation("showPetById").handler(this::showPetById);
+        createApiTempFile("petstore.yaml").onSuccess(file -> {
+            RouterBuilder.create(vertx, file).onSuccess(routerBuilder -> {
+                routerBuilder.operation("createPets").handler(this::createPets);
+                routerBuilder.operation("listPets").handler(this::listPets);
+                routerBuilder.operation("showPetById").handler(this::showPetById);
 
-                                Router router = routerBuilder.createRouter();
-                                healthCheckBuilder(router);
-                                vertx.createHttpServer()
-                                        .requestHandler(router)
-                                        .listen(config().getInteger("http.port", defaultPort), result -> {
-                                            if (result.succeeded()) {
-                                                startPromise.complete();
-                                                logger.info("HttpServerVerticle listening on port {}", defaultPort);
-                                            } else {
-                                                startPromise.fail(result.cause());
-                                                logger.info("HttpServerVerticle failed to start: " + result.cause().getMessage());
-                                            }
-                                        });
-                            })
-                            .onFailure(err -> {
-                                logger.info(err.toString());
+                Router router = routerBuilder.createRouter();
+                healthCheckBuilder(router);
+
+                ConfigRetriever configRetriever = ConfigRetriever.create(vertx,
+                        new ConfigRetrieverOptions().addStore(new ConfigStoreOptions().setType("sys")));
+                configRetriever.getConfig().onSuccess(config -> {
+                    vertx.createHttpServer()
+                            .requestHandler(router)
+                            .listen(config.getInteger("http.port", defaultPort), result -> {
+                                if (result.succeeded()) {
+                                    startPromise.complete();
+                                    logger.info("HttpServerVerticle listening on port {}",
+                                            config.getInteger("http.port", defaultPort));
+                                } else {
+                                    startPromise.fail(result.cause());
+                                    logger.info("HttpServerVerticle failed to start: " + result.cause().getMessage());
+                                }
                             });
-                })
-                .onFailure(e -> {
-
+                }).onFailure(err -> {
+                    logger.info(err.getMessage());
                 });
+            })
+            .onFailure(err -> {
+                logger.info(err.getMessage());
+            });
+        }).onFailure(err -> {
+            logger.info(err.getMessage());
+        });
     }
 
     // Health Check
