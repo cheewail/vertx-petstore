@@ -1,0 +1,7 @@
+{
+ "http.port": 8080,
+ "mongo.enabled": false,
+ "mongo.uri": "mongodb+srv://user:user@clusterzero.rhnsz.mongodb.net",
+ "mongo.dbname": "petstore",
+ "mongo.list.max": 100
+}

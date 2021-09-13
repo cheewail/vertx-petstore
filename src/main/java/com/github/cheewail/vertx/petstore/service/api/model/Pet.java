@@ -10,14 +10,20 @@ public class Pet {
     private String name;
     private String tag;
 
-    public Pet(Long id, String name, String tag) {
+    public Pet(Long id, String name) {
         this.id = id;
+        this.name = name;
+    }
+
+    public Pet(String name, String tag) {
         this.name = name;
         this.tag = tag;
     }
 
-    public Pet(Long id) {
+    public Pet(Long id, String name, String tag) {
         this.id = id;
+        this.name = name;
+        this.tag = tag;
     }
 
     public Pet(JsonObject jsonObject) {

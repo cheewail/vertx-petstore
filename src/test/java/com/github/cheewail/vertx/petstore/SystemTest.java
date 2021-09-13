@@ -14,15 +14,19 @@ import io.vertx.junit5.VertxTestContext;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static io.reactiverse.junit5.web.TestRequest.emptyResponse;
 import static io.reactiverse.junit5.web.TestRequest.jsonBodyResponse;
 import static io.reactiverse.junit5.web.TestRequest.responseHeader;
 import static io.reactiverse.junit5.web.TestRequest.statusCode;
 import static io.reactiverse.junit5.web.TestRequest.testRequest;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(VertxExtension.class)
 public class SystemTest {
+    static final Logger logger = LoggerFactory.getLogger(SystemTest.class);
 
     @WebClientOptionsInject
     public WebClientOptions opts = new WebClientOptions()
@@ -66,26 +70,35 @@ public class SystemTest {
     }
 
     @Test
-    public void createPetsAndGetPets(WebClient client, VertxTestContext testContext) {
-        final Checkpoint checkpoint = testContext.checkpoint(2);
-        final JsonObject newPet = new JsonObject()
-                .put("id", 1)
-                .put("name", "1")
-                .put("tag", "1");
-
+    public void createPets(WebClient client, VertxTestContext testContext) {
         testRequest(client.post("/pets"))
                 .expect(
                         statusCode(201),
                         responseHeader("content-length", "0"),
-                        emptyResponse()
+                        emptyResponse(),
+                        res -> assertNotNull(res.getHeader("x-petId")),
+                        res -> assertNull(res.getHeader("content-type"))
                 )
-                .sendJson(newPet, testContext, checkpoint)
+                .send(testContext);
+    }
+
+    @Test
+    public void createPetsAndGetPets(WebClient client, VertxTestContext testContext) {
+        final Checkpoint checkpoint = testContext.checkpoint(2);
+        testRequest(client.post("/pets"))
+                .expect(
+                        statusCode(201),
+                        responseHeader("content-length", "0"),
+                        emptyResponse(),
+                        res -> assertNotNull(res.getHeader("x-petId")),
+                        res -> assertNull(res.getHeader("content-type"))
+                )
+                .send(testContext, checkpoint)
                 .onComplete(ar ->
-                        testRequest(client.get("/pets/1"))
+                        testRequest(client.get("/pets/" + ar.result().headers().get("x-petId")))
                                 .expect(
                                         statusCode(200),
-                                        responseHeader("content-type", "application/json"),
-                                        jsonBodyResponse(newPet)
+                                        responseHeader("content-type", "application/json")
                                 )
                                 .send(testContext, checkpoint)
                 );
@@ -99,6 +112,24 @@ public class SystemTest {
                         responseHeader("content-type", "application/json")
                 )
                 .send(testContext);
+    }
+
+    @Test
+    public void listPetsWithLimit(WebClient client, VertxTestContext testContext) {
+        final Checkpoint checkpoint = testContext.checkpoint(4);
+        testRequest(client.post("/pets")).expect(statusCode(201)).send(testContext, checkpoint).onComplete(ar1 -> {
+            testRequest(client.post("/pets")).expect(statusCode(201)).send(testContext, checkpoint).onComplete(ar2 -> {
+                testRequest(client.post("/pets")).expect(statusCode(201)).send(testContext, checkpoint).onComplete(ar3 -> {
+                    testRequest(client.get("/pets?limit=2"))
+                            .expect(
+                                    statusCode(200),
+                                    responseHeader("content-type", "application/json"),
+                                    res -> assertEquals(2, res.bodyAsJsonArray().stream().count())
+                            )
+                            .send(testContext, checkpoint);
+                });
+            });
+        });
     }
 
     @Test

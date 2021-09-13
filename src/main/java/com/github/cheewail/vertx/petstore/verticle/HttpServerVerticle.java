@@ -3,8 +3,6 @@ package com.github.cheewail.vertx.petstore.verticle;
 import com.github.cheewail.vertx.petstore.service.api.PetService;
 import com.github.cheewail.vertx.petstore.service.api.model.Pet;
 import io.vertx.config.ConfigRetriever;
-import io.vertx.config.ConfigRetrieverOptions;
-import io.vertx.config.ConfigStoreOptions;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -17,6 +15,7 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import io.vertx.ext.web.validation.RequestParameters;
 import io.vertx.ext.web.validation.ValidationHandler;
+import io.vertx.serviceproxy.ServiceException;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,8 +48,7 @@ public class HttpServerVerticle extends AbstractVerticle {
                 Router router = routerBuilder.createRouter();
                 healthCheckBuilder(router);
 
-                ConfigRetriever configRetriever = ConfigRetriever.create(vertx,
-                        new ConfigRetrieverOptions().addStore(new ConfigStoreOptions().setType("sys")));
+                ConfigRetriever configRetriever = ConfigRetriever.create(vertx);
                 configRetriever.getConfig().onSuccess(config -> {
                     vertx.createHttpServer()
                             .requestHandler(router)
@@ -65,14 +63,14 @@ public class HttpServerVerticle extends AbstractVerticle {
                                 }
                             });
                 }).onFailure(err -> {
-                    logger.info(err.getMessage());
+                    logger.error(err.getMessage());
                 });
             })
             .onFailure(err -> {
-                logger.info(err.getMessage());
+                logger.error(err.getMessage());
             });
         }).onFailure(err -> {
-            logger.info(err.getMessage());
+            logger.error(err.getMessage());
         });
     }
 
@@ -100,7 +98,7 @@ public class HttpServerVerticle extends AbstractVerticle {
             if (result.succeeded()) {
                 if (result.result() != null) {
                     routingContext.response()
-                            .putHeader("content-type", "application/json")
+                            .putHeader("x-petId", result.result())
                             .setStatusCode(201)
                             .end();
                 } else {
@@ -109,9 +107,7 @@ public class HttpServerVerticle extends AbstractVerticle {
                             .end();
                 }
             } else {
-                routingContext.response()
-                        .setStatusCode(500)
-                        .end();
+                handleException(routingContext, result.cause());
             }
         });
     }
@@ -136,9 +132,7 @@ public class HttpServerVerticle extends AbstractVerticle {
                             .end();
                 }
             } else {
-                routingContext.response()
-                        .setStatusCode(500)
-                        .end();
+                handleException(routingContext, result.cause());
             }
         });
     }
@@ -148,8 +142,7 @@ public class HttpServerVerticle extends AbstractVerticle {
         RequestParameters requestParameters = routingContext.get(ValidationHandler.REQUEST_CONTEXT_KEY);
         JsonObject json = requestParameters.toJson().getJsonObject("path");
         try {
-            Long petId = Long.parseLong(json.getString("petId"));
-            petService.showPetById(petId, result -> {
+            petService.showPetById(json.getString("petId"), result -> {
                 if (result.succeeded()) {
                     if (result.result() != null) {
                         routingContext.response()
@@ -158,16 +151,14 @@ public class HttpServerVerticle extends AbstractVerticle {
                                 .end(result.result().toJson().encodePrettily());
                     } else {
                         routingContext.response()
-                                .setStatusCode(204)
+                                .setStatusCode(404)
                                 .end();
                     }
                 } else {
-                    routingContext.response()
-                            .setStatusCode(404)
-                            .end();
+                    handleException(routingContext, result.cause());
                 }
             });
-        } catch(NumberFormatException e) {
+        } catch (NumberFormatException e) {
             routingContext.response()
                     .setStatusCode(404)
                     .end();
@@ -175,7 +166,23 @@ public class HttpServerVerticle extends AbstractVerticle {
     }
 
     // Helper method
-    Future<String> createApiTempFile(String file) {
+    private void handleException(RoutingContext routingContext, Throwable throwable) {
+        if (throwable instanceof ServiceException) {
+            ServiceException ex = (ServiceException)throwable;
+            int statusCode = ex.failureCode() > 0 ? ex.failureCode() : 503;
+            routingContext.response()
+                    .setStatusCode(statusCode)
+                    .end();
+            logger.error("Service Exception: " + ex.getMessage());
+        } else {
+            routingContext.response()
+                    .setStatusCode(500)
+                    .end();
+        }
+    }
+
+    // Helper method
+    private Future<String> createApiTempFile(String file) {
         Promise<String> promise = Promise.promise();
         vertx.fileSystem().createTempDirectory("")
                 .onSuccess(dir -> {

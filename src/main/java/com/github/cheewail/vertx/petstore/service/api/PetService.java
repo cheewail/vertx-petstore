@@ -13,11 +13,13 @@ import java.util.List;
 @ProxyGen
 public interface PetService {
 
-    void createPets(Handler<AsyncResult<Pet>> handler);
+    void createPets(Handler<AsyncResult<String>> handler);
 
     void listPets(Integer limit, Handler<AsyncResult<List<Pet>>> handler);
 
-    void showPetById(Long petId, Handler<AsyncResult<Pet>> handler);
+    void showPetById(String petId, Handler<AsyncResult<Pet>> handler);
+
+    void healthCheck(Handler<AsyncResult<Void>> handler);
 
     static PetService createProxy(Vertx vertx, String address) {
         return new PetServiceVertxEBProxy(vertx, address);

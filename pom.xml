@@ -23,7 +23,9 @@
         <vertx.version>4.1.3</vertx.version>
         <log4j.api.version>2.14.1</log4j.api.version>
         <logback.version>1.2.5</logback.version>
-        <commons-io>2.4</commons-io>
+
+        <commons.io.version>2.4</commons.io.version>
+        <javafaker.version>1.0.2</javafaker.version>
 
         <reactiverse-junit5-web-client.version>0.3.0</reactiverse-junit5-web-client.version>
     </properties>
@@ -67,6 +69,10 @@
             <groupId>io.vertx</groupId>
             <artifactId>vertx-config</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-mongo-client</artifactId>
+        </dependency>
 
         <!-- logger -->
         <dependency>
@@ -85,11 +91,17 @@
             <version>${logback.version}</version>
         </dependency>
 
+        <!-- utils -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>${commons-io}</version>
+            <version>${commons.io.version}</version>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.javafaker</groupId>
+            <artifactId>javafaker</artifactId>
+            <version>${javafaker.version}</version>
         </dependency>
 
         <!-- test -->
